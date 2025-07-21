@@ -3,7 +3,7 @@ spring:
     name: spotify
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://${POSTGRES_HOST}:5432/dc
+    url: jdbc:postgresql://${POSTGRES_HOST}:5432/postgres
     username: ${POSTGRES_USERNAME}
     password: ${POSTGRES_PASSWORD}
   jpa:
@@ -40,3 +40,6 @@ spring:
   cache:
     type: redis
 
+spotify:
+  base-url: ${SPOTIFY_API}
+  base-refresh-url: ${SPOTIFY_REFRESH_API}

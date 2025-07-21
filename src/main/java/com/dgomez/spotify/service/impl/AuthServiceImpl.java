@@ -1,12 +1,12 @@
 package com.dgomez.spotify.service.impl;
 
 import com.dgomez.spotify.dto.AuthResponse;
-import com.dgomez.spotify.dto.ex.UserException;
 import com.dgomez.spotify.service.AuthService;
+import com.dgomez.spotify.service.SpotifyTokenService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.stereotype.Service;
@@ -21,27 +21,28 @@ public class AuthServiceImpl implements AuthService {
 
     private final OAuth2AuthorizedClientService authorizedClientService;
 
+    private final SpotifyTokenService spotifyTokenService;
+
     @Override
     public AuthResponse getAuthInformation(String userID) {
-        log.info("Retrieving auth information for user {}", userID);
         OAuth2AuthorizedClient client = authorizedClientService
                 .loadAuthorizedClient("spotify", userID);
 
         if (client == null) {
-            throw new UserException("No authorized client found, no OAUTH2 token found", HttpStatus.BAD_REQUEST);
+            log.warn("No authorized client found for user {}. Triggering re-authentication", userID);
+            throw new InsufficientAuthenticationException("No authorized client found, re-authentication required");
         }
 
-        String accessToken = client.getAccessToken().getTokenValue();
-        String refreshToken = client.getRefreshToken() != null ? client.getRefreshToken().getTokenValue() : null;
-        String scope = String.join(" ", client.getAccessToken().getScopes());
-        long expiresIn = client.getAccessToken().getExpiresAt().getEpochSecond() - Instant.now().getEpochSecond();
+        spotifyTokenService.saveUserToken(userID, client);
 
-        log.info("Retrieved auth information for user {}", userID);
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .expiresIn(expiresIn)
-                .scope(scope)
-                .build();
+        if (client.getRefreshToken() != null && client.getAccessToken() != null) {
+            return AuthResponse.builder()
+                    .message("Authentication successful")
+                    .userID(userID)
+                    .authenticated(true)
+                    .build();
+        }
+
+        throw new InsufficientAuthenticationException("No access token or refresh token found");
     }
 }
